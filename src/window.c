@@ -104,20 +104,12 @@ static struct
 	sdlTexture textures[MAX_TEXTURES];
 } textureStorage;
 
-static float clampf(float value, float min, float max);
-static int clampi(int value, int min, int max);
+
 static void windowResized(void);
 static void updateTime(void);
 static sdlTexture createSDLTexture(int width, int height);
 static void updateInput(void);
 void drawText(Layer layer, int xPos, int yPos, char *string);
-
-#define PI 3.14159265358979323846264338327950f
-#define DEG2RAD(x) ((x) * (PI / 180.f))
-#define RAD2DEG(x) ((x) * (180.f / PI))
-
-#define errLog(message) \
-	fprintf(stderr, "File: %s, Function: %s, Line: %d, Note: %s\n", __FILE__, __FUNCTION__, __LINE__, message);
 
 Layer window_createLayer(void)
 {
@@ -802,23 +794,6 @@ void gaussBlurf(float *source, float *target,int source_lenght, int w, int h, in
 
 
 
-//Normalize given vector
-inline vec2f_t normalizeVec2f(vec2f_t vector){
-	float length = sqrtf(vector.x * vector.x + vector.y * vector.y);
-	vector.x /= length;
-	vector.y /= length;
-	return vector;
-}
-
-//Normalize given vector
-inline vec3f_t normalizeVec3f(vec3f_t vector){
-	float length = sqrtf(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
-	vector.x /= length;
-	vector.y /= length;
-	vector.z /= length;
-	return vector;
-}
-
 
 void drawPoint(Layer layer, int x, int y, argb_t color){
 	if(x >= layer.w || x < 0 || y >= layer.h || y < 0){
@@ -886,17 +861,6 @@ void drawLine(Layer layer, int xStart, int yStart, int xEnd, int yEnd, argb_t co
 	}
 }
 
-
-static float clampf(float value, float min, float max) {
-    const float t = (value < min) ? min : value;
-    return (t > max) ? max : t;
-}
-
-
-static int clampi(int value, int min, int max) {
-    const int t = (value < min) ? min : value;
-    return (t > max) ? max : t;
-}
 
 argb_t argbAdd1(argb_t color1, argb_t color2){
 	argb_t result_color;
@@ -1170,17 +1134,34 @@ void gaussBlurargb(argb_t *source, argb_t *target,int source_lenght, int w, int 
 }
 
 
-static inline float lerp(const float s, const float e, const float t)
-{
-	return s + (e - s) * t;
+//Vector stuff
+
+//Normalize given vector
+vec2f_t normalizeVec2f(vec2f_t vector){
+	float length = sqrtf(vector.x * vector.x + vector.y * vector.y);
+	vector.x /= length;
+	vector.y /= length;
+	return vector;
+}
+
+//Normalize given vector
+vec3f_t normalizeVec3f(vec3f_t vector){
+	float length = sqrtf(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
+	vector.x /= length;
+	vector.y /= length;
+	vector.z /= length;
+	return vector;
 }
 
 
-argb_t lerpargb(const argb_t s, const argb_t e, const float t)
-{
-	argb_t result;
-	result.r = lerp(s.r, e.r, t);
-	result.g = lerp(s.g, e.g, t);
-	result.b = lerp(s.b, e.b, t);
-	return result;
+float dotProduct(vec3f_t v0, vec3f_t v1) {
+    return v0.x * v1.x + v0.y * v1.y + v0.z * v1.z;
+}
+
+vec3f_t crossProduct(vec3f_t v0, vec3f_t v1){
+	vec3f_t resultVec;
+	resultVec.x = v0.y * v1.z - v0.z * v1.y;
+    resultVec.y = v0.z * v1.x - v0.x * v1.z;
+    resultVec.z = v0.x * v1.y - v0.y * v1.x;
+	return resultVec;
 }

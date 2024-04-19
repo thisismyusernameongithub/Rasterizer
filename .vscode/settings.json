@@ -22,7 +22,10 @@
         "immintrin.h": "c",
         "x86gprintrin.h": "c",
         "functional": "c",
-        "sstream": "c"
+        "sstream": "c",
+        "algorithm": "c",
+        "chrono": "c",
+        "random": "c"
     },
     "cmake.configureOnOpen": true,
     "makefile.launchConfigurations": [

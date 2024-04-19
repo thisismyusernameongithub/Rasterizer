@@ -31,25 +31,16 @@
 #endif
 
 
-
+#define rendererSizeX (512)
+#define rendererSizeY (512)
 
 Layer botLayer;
 Layer topLayer;
 
 
+vec3f_t light_dir = {0.f, 0.f, 1.f};
+int zBuffer[rendererSizeX*rendererSizeY];
 
-
-
-typedef struct{
-	union{
-		struct{
-			int x;
-			int y;
-			int z;
-		};
-		int array[3];
-	};
-}vec3i_t;
 
 typedef struct{
 	vec3f_t vertices[3];
@@ -67,13 +58,29 @@ typedef struct{
 	Face* faces;
 }Model;
 
-vec3f_t testVert[3] = {
-	[0] = {.x = 0.0, .y = 0.0, .z = 0.0},
-	[1] = {.x = 1.0, .y = 0.0, .z = 0.0},
-	[2] = {.x = 0.0, .y = 1.0, .z = 0.0}
-};
 
-Face testFaces[1];
+
+vec3f_t calculateNormal(vec3f_t p1, vec3f_t p2, vec3f_t p3) {
+    vec3f_t v1, v2, normal;
+    
+    // Calculate vectors v1 and v2
+    v1.x = p2.x - p1.x;
+    v1.y = p2.y - p1.y;
+    v1.z = p2.z - p1.z;
+    
+    v2.x = p3.x - p1.x;
+    v2.y = p3.y - p1.y;
+    v2.z = p3.z - p1.z;
+    
+    // Calculate the cross product of v1 and v2 to get the normal vector
+    normal = crossProduct(v1, v2);
+	
+    // Normalize the normal vector
+    normal = normalizeVec3f(normal);
+    
+    return normal;
+}
+
 
 Model testModel;
 
@@ -172,9 +179,10 @@ Model loadModel(char* path){
 			faces[index_face].vertices[0] = vertices[v0];
 			faces[index_face].vertices[1] = vertices[v1];
 			faces[index_face].vertices[2] = vertices[v2];
-			faces[index_face].normals[0] = normals[vn0];
-			faces[index_face].normals[1] = normals[vn1];
-			faces[index_face].normals[2] = normals[vn2];
+			vec3f_t normal = (vertices[v0], vertices[v2], vertices[v2]);
+			faces[index_face].normals[0] = normal;
+			faces[index_face].normals[1] = normal;
+			faces[index_face].normals[2] = normal;
 			faces[index_face].textureCoords[0] = textureCoords[vt0];
 			faces[index_face].textureCoords[1] = textureCoords[vt1];
 			faces[index_face].textureCoords[2] = textureCoords[vt2];
@@ -198,11 +206,6 @@ argb_t white = rgb(255,255,255);
 argb_t green = rgb(0,255,0);
 argb_t blue = rgb(0,0,255);
 
-// Calculate the dot product of two vec3f_t vectors
-float dotProduct(vec3f_t v1, vec3f_t v2) {
-    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
-}
-
 // Function to swap two vec2i_t points
 void swapVec2i(vec2i_t *a, vec2i_t *b) {
     vec2i_t temp = *a;
@@ -210,8 +213,103 @@ void swapVec2i(vec2i_t *a, vec2i_t *b) {
     *b = temp;
 }
 
+// Function to swap two vec2i_t points
+void swapVec3i(vec3i_t *a, vec3i_t *b) {
+    vec3i_t temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+
+void drawTriangle3d(Layer layer, vec3i_t p0, vec3i_t p1, vec3i_t p2, argb_t color){
+//Find lowest point
+	if (p0.y>p1.y) swapVec3i(&p0, &p1); 
+    if (p0.y>p2.y) swapVec3i(&p0, &p2); 
+    if (p1.y>p2.y) swapVec3i(&p1, &p2);
+	//Find slope of left and right side of triangle
+	int y = p0.y;
+	int yMid = p1.y;
+	int yTop = p2.y;
+	float lim1 = p0.x;
+	float lim2 = p0.x;
+	float slope1 = (float)(p1.x - p0.x) / (float)(p1.y - p0.y);
+	float slope2 = (float)(p2.x - p0.x) / (float)(p2.y - p0.y);
+
+	//Draw line by line, increasing width by slope for each line.
+	for(; y < yMid; y++){
+		lim1 += slope1;
+		lim2 += slope2;
+		// drawLine(layer, lim1, y, lim2, y, white);
+		{
+			int xStart = mini(lim1, lim2);
+			int xEnd   = maxi(lim1, lim2);
+			for(int i = xStart; i < xEnd; i++)
+			{
+				float d0 = (i-(p1.x+p2.x)/2)*(i-(p1.x+p2.x)/2)+(y-(p1.y+p2.y)/2)*(y-(p1.y+p2.y)/2);
+				float d1 = (i-(p0.x+p2.x)/2)*(i-(p0.x+p2.x)/2)+(y-(p0.y+p2.y)/2)*(y-(p0.y+p2.y)/2);
+				float d2 = (i-(p1.x+p0.x)/2)*(i-(p1.x+p0.x)/2)+(y-(p1.y+p0.y)/2)*(y-(p1.y+p0.y)/2);
+				float total = d0 + d1 + d2;
+				d0 /= total;
+				d1 /= total;
+				d2 /= total;
+				int zDepth = p0.z*d0 + p1.z*d1 + p2.z*d2;
+				
+				// printf("%f %f %f = %f\n", d0, d1, d2, d0 + d1 + d2);
+				if(zDepth > zBuffer[i + y * layer.w])
+				{
+					zBuffer[i + y * layer.w] = zDepth;
+					// argb_t color = rgb(255*d0, 255*d1, 255*d2);
+
+					layer.frameBuffer[i + y * layer.w] = color;
+				}
+			}
+		}
+		// window_run(); Sleep(1);
+	}
+	
+	lim1 = p1.x; //lim1 should already be p1.x EXCEPT for the corner case where the two lowest points have the exact same y value.
+
+	//When first point is met, recalculate slope from that point to the last
+	slope1 = (float)(p2.x - p1.x) / (float)(p2.y - p1.y);
+	//Draw rest of triangle
+	for(; y < yTop; y++){
+		lim1 += slope1;
+		lim2 += slope2;
+		
+		// drawLine(layer, lim1, y, lim2, y, red);
+		{
+			int xStart = mini(lim1, lim2);
+			int xEnd   = maxi(lim1, lim2);
+			for(int i = xStart; i < xEnd; i++)
+			{
+				float d0 = (i-(p1.x+p2.x)/2)*(i-(p1.x+p2.x)/2)+(y-(p1.y+p2.y)/2)*(y-(p1.y+p2.y)/2);
+				float d1 = (i-(p0.x+p2.x)/2)*(i-(p0.x+p2.x)/2)+(y-(p0.y+p2.y)/2)*(y-(p0.y+p2.y)/2);
+				float d2 = (i-(p1.x+p0.x)/2)*(i-(p1.x+p0.x)/2)+(y-(p1.y+p0.y)/2)*(y-(p1.y+p0.y)/2);
+				float total = d0 + d1 + d2;
+				d0 /= total;
+				d1 /= total;
+				d2 /= total;
+				int zDepth = p0.z*d0 + p1.z*d1 + p2.z*d2;
+				
+				// printf("%f %f %f = %f\n", d0, d1, d2, d0 + d1 + d2);
+				if(zDepth > zBuffer[i + y * layer.w])
+				{
+					zBuffer[i + y * layer.w] = zDepth;
+					// argb_t color = rgb(255*d0, 255*d1, 255*d2);
+
+					layer.frameBuffer[i + y * layer.w] = color;
+				}
+			}
+		}
+		// window_run(); Sleep(1);
+	}
+	// drawPoint(layer, p0.x, p0.y, red);
+	// drawPoint(layer, p1.x, p1.y, green);
+	// drawPoint(layer, p2.x, p2.y, blue);
+}
+
+//TODO: Ta bort modifieringarna så den ritar med color bara, lägg i window.c, byt till drawline, kan optimisera senare.
 void drawTriangle(Layer layer, vec2i_t p0, vec2i_t p1, vec2i_t p2, argb_t color){
-	vec2i_t P0, P1, P2;
 	//Find lowest point
 	if (p0.y>p1.y) swapVec2i(&p0, &p1); 
     if (p0.y>p2.y) swapVec2i(&p0, &p2); 
@@ -229,7 +327,7 @@ void drawTriangle(Layer layer, vec2i_t p0, vec2i_t p1, vec2i_t p2, argb_t color)
 	for(; y < yMid; y++){
 		lim1 += slope1;
 		lim2 += slope2;
-		drawLine(layer, lim1, y, lim2, y, color);
+		// drawLine(layer, lim1, y, lim2, y, color);
 		// window_run(); Sleep(1);
 	}
 	
@@ -241,7 +339,22 @@ void drawTriangle(Layer layer, vec2i_t p0, vec2i_t p1, vec2i_t p2, argb_t color)
 	for(; y < yTop; y++){
 		lim1 += slope1;
 		lim2 += slope2;
-		drawLine(layer, lim1, y, lim2, y, color);
+		// drawLine(layer, lim1, y, lim2, y, color);
+		{
+			for(int i = lim2; i < lim1; i++){
+				float d0 = (i-(p1.x+p2.x)/2)*(i-(p1.x+p2.x)/2)+(y-(p1.y+p2.y)/2)*(y-(p1.y+p2.y)/2);
+				float d1 = (i-(p0.x+p2.x)/2)*(i-(p0.x+p2.x)/2)+(y-(p0.y+p2.y)/2)*(y-(p0.y+p2.y)/2);
+				float d2 = (i-(p1.x+p0.x)/2)*(i-(p1.x+p0.x)/2)+(y-(p1.y+p0.y)/2)*(y-(p1.y+p0.y)/2);
+				float total = d0 + d1 + d2;
+				d0 /= total;
+				d1 /= total;
+				d2 /= total;
+				// printf("%f %f %f = %f\n", d0, d1, d2, d0 + d1 + d2);
+				color = rgb(255*d0, 255*d1, 255*d2);
+
+				layer.frameBuffer[i + y * layer.w] = color;
+			}
+		}
 		// window_run(); Sleep(1);
 	}
 	// drawPoint(layer, p0.x, p0.y, red);
@@ -249,7 +362,6 @@ void drawTriangle(Layer layer, vec2i_t p0, vec2i_t p1, vec2i_t p2, argb_t color)
 	// drawPoint(layer, p2.x, p2.y, blue);
 }
 
-vec3f_t light_dir = {0.f, 0.f, 1.f};
 
 // Rotate a point around the origin
 void rotatePoint(vec2i_t *point, float angle) {
@@ -277,6 +389,8 @@ static int mainLoop()
 	clearLayer(botLayer);
 	clearLayer(topLayer);
 
+	memset(zBuffer, 0, rendererSizeX*rendererSizeY*sizeof(zBuffer[0]));
+	
 	drawText(topLayer, 10, 10, printfLocal("fps: %.2f, ms: %.2f", window.time.fps, 1000.f*window.time.dTime));
     
 	// Define the points
@@ -310,11 +424,11 @@ static int mainLoop()
 	// drawTriangle(botLayer, p2, p0, p1, white);
 	// drawTriangle(botLayer, p2, p1, p0, green);
 
-	for(int y = 0; y < botLayer.h; y++){
-		for(int x = 0; x < botLayer.w; x++){
-			botLayer.frameBuffer[x + y * botLayer.w] = rgb(255 * y / botLayer.h, 50, 50);	
-		}	
-	}
+	// for(int y = 0; y < botLayer.h; y++){
+	// 	for(int x = 0; x < botLayer.w; x++){
+	// 		botLayer.frameBuffer[x + y * botLayer.w] = rgb(255 * y / botLayer.h, 50, 50);	
+	// 	}	
+	// }
 
 	srand(1);
 	for(int face = 0; face < testModel.no.faces; face++){
@@ -347,24 +461,26 @@ static int mainLoop()
 		y1 = (botLayer.h / 2) + y1 * (botLayer.h / 2);
 		x2 = (botLayer.w / 2) + x2 * (botLayer.w / 2);
 		y2 = (botLayer.h / 2) + y2 * (botLayer.h / 2);
-		vec2i_t p0 = {x0, y0};
-		vec2i_t p1 = {x1, y1};
-		vec2i_t p2 = {x2, y2};
+		vec3i_t p0 = {x0, y0, 1000 + testModel.faces[face].vertices[0].z*500};
+		vec3i_t p1 = {x1, y1, 1000 + testModel.faces[face].vertices[1].z*500};
+		vec3i_t p2 = {x2, y2, 1000 + testModel.faces[face].vertices[2].z*500};
+		
 		float intensity = dotProduct(light_dir, testModel.faces[face].normals[0]); //Assume all normals are the same for face
 		argb_t color = rgb(intensity * 150,intensity * 150,intensity * 150);
 		if(intensity > 1.f) {
 			// printf("%f\n", intensity);
 		}
-		if(intensity > 0.f)
+		// if(intensity > 0.f)
 		{
-			drawTriangle(botLayer, p0, p1, p2, color);
+			drawTriangle3d(botLayer, p0, p1, p2, color);
 		}
 	}
 
-	
+	// drawTriangle3d(botLayer, (vec3i_t){150, 150, 400}, (vec3i_t){250, 300, 100}, (vec3i_t){500, 200, 100});
+	// drawTriangle3d(botLayer, (vec3i_t){100, 100, 100}, (vec3i_t){250, 400, 200}, (vec3i_t){400, 100, 300});
 
 	// Invert Y axis by flipping framebuffer before drawing.
-	static argb_t tempBuffer[512*512];
+	static argb_t tempBuffer[rendererSizeX*rendererSizeY];
 	for(int y = 0; y < botLayer.h; y++){
 		for(int x = 0; x < botLayer.w; x++){
 			tempBuffer[x + y * botLayer.w] = botLayer.frameBuffer[x + (botLayer.h - 1 - y)  * botLayer.w];
@@ -373,7 +489,7 @@ static int mainLoop()
 	memcpy(botLayer.frameBuffer, tempBuffer, window.drawSize.w*window.drawSize.h*sizeof(argb_t));
 
 	if(key.ESC){
-		window.closeWindow = true;
+		window.closeWindow = 1;
 	}
 
 	return window_run();
@@ -392,8 +508,8 @@ int main()
 
 	window.pos.x = 20;
 	window.pos.y = 20;
-	window.drawSize.w = 512;
-	window.drawSize.h = 512;
+	window.drawSize.w = rendererSizeX;
+	window.drawSize.h = rendererSizeY;
 	window.size.w = window.drawSize.w*2;
 	window.size.h = window.drawSize.h*2;
 	

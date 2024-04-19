@@ -16,7 +16,7 @@
             "name": "gcc build and debug active file",
             "type": "cppdbg",
             "request": "launch",
-            "program": "C:/Users/dwtys/OneDrive/Dokument/programming/c/build/Renderer.exe",
+            "program": "${workspaceFolder}/build/Renderer.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

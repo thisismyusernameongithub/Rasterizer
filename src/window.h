@@ -3,20 +3,57 @@
 
 #include <stdint.h>
 
+#ifndef M_PI
+	#define M_PI 3.14159265358979323846
+#endif
+
+#define DEG2RAD(x) ((x)*(M_PI/180.f))
+#define RAD2DEG(x) ((x)*(180.f/M_PI))
+
+#define errLog(message) \
+	fprintf(stderr, "\nFile: %s, Function: %s, Line: %d, Note: %s\n", __FILE__, __FUNCTION__, __LINE__, message);
+
 typedef struct{
-	float x;
-	float y;
-	float z;
+	union{
+		struct{
+			float x;
+			float y;
+			float z;
+		};
+		float array[3];
+	};
 }vec3f_t;
 
 typedef struct{
-	float x;
-	float y;
+	union{
+		struct{
+			int x;
+			int y;
+			int z;
+		};
+		int array[3];
+	};
+}vec3i_t;
+
+
+typedef struct{
+	union{
+		struct{
+			float x;
+			float y;
+		};
+		float array[2];
+	};
 }vec2f_t;
 
 typedef struct{
-	int x;
-	int y;
+	union{
+		struct{
+			int x;
+			int y;
+		};
+		int array[2];
+	};
 }vec2i_t;
 
 typedef struct{
@@ -180,17 +217,76 @@ void gaussBlurargb3(argb_t *source, argb_t *target, int source_lenght, int w, in
 
 vec2f_t normalizeVec2f(vec2f_t vector);
 vec3f_t normalizeVec3f(vec3f_t vector);
+float dotProduct(vec3f_t v0, vec3f_t v1);
+vec3f_t crossProduct(vec3f_t v0, vec3f_t v1);
 
 void drawPoint(Layer layer, int x, int y, argb_t color);
 void drawSquare(Layer layer, int x, int y, int w, int h, argb_t color);
 void drawLine(Layer layer, int xStart, int yStart, int xEnd, int yEnd, argb_t color);
 
-argb_t argbAdd1(argb_t color1, argb_t color2);
-argb_t argbAdd2(argb_t color1, argb_t color2);
-
-argb_t lerpargb(const argb_t s, const argb_t e, const float t);
 
 void testFunc(void);
+
+
+static inline int maxi(const int a, const int b){
+    return (a > b) ? a : b;
+}
+
+static inline int mini(const int a, const int b)
+{
+    return (a < b) ? a : b;
+}
+
+static inline float maxf(const float a, const float b)
+{
+    return (a > b) ? a : b;
+}
+
+static inline float minf(const float a, const float b)
+{
+    return (a < b) ? a : b;
+}
+
+static inline float clampf(const float value, const float min, const float max) 
+{
+    const float t = (value < min) ? min : value;
+    return (t > max) ? max : t;
+}
+
+static inline int clampi(int value, int min, int max) {
+    const int t = (value < min) ? min : value;
+    return (t > max) ? max : t;
+}
+
+static inline float cosLerp(const float y1, const float y2, const float mu)
+{
+	const double mu2 = (1-cos(mu*M_PI))/2;
+	return(y1*(1-mu2)+y2*mu2);
+}
+
+static inline float lerp(const float s, const float e, const float t)
+{
+	return s + (e - s) * t;
+}
+
+static inline float blerp(const float c00, const float c10, const float c01, const float c11, const float tx, const float ty)
+{
+	//    return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+	const float s = c00 + (c10 - c00) * tx;
+	const float e = c01 + (c11 - c01) * tx;
+	return (s + (e - s) * ty);
+}
+
+
+static inline argb_t lerpargb(const argb_t s, const argb_t e, const float t)
+{
+	argb_t result;
+	result.r = lerp(s.r, e.r, t);
+	result.g = lerp(s.g, e.g, t);
+	result.b = lerp(s.b, e.b, t);
+	return result;
+}
+
 
 #endif /* WINDOW_H_ */
 
